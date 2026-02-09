@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from pathlib import Path
 
 import click
 
@@ -110,6 +111,8 @@ def watch(paths: tuple[str, ...], provider: str, model: str | None, collection: 
 @click.option("--source", "-s", default=None, help="Only flush chunks from this source.")
 @click.option("--llm-provider", default="openai", help="LLM for summarization.")
 @click.option("--llm-model", default=None, help="Override LLM model.")
+@click.option("--prompt", default=None, help="Custom prompt template (must contain {chunks}).")
+@click.option("--prompt-file", default=None, type=click.Path(exists=True), help="Read prompt template from file.")
 @click.option("--provider", "-p", default="openai", help="Embedding provider.")
 @click.option("--model", "-m", default=None, help="Override embedding model.")
 @click.option("--collection", "-c", default="memsearch_chunks", help="Milvus collection name.")
@@ -117,6 +120,8 @@ def flush(
     source: str | None,
     llm_provider: str,
     llm_model: str | None,
+    prompt: str | None,
+    prompt_file: str | None,
     provider: str,
     model: str | None,
     collection: str,
@@ -124,9 +129,16 @@ def flush(
     """Compress stored memories into a summary."""
     from .core import MemSearch
 
+    prompt_template = prompt
+    if prompt_file:
+        prompt_template = Path(prompt_file).read_text(encoding="utf-8")
+
     ms = MemSearch(embedding_provider=provider, embedding_model=model, collection=collection)
     try:
-        summary = _run(ms.flush(source=source, llm_provider=llm_provider, llm_model=llm_model))
+        summary = _run(ms.flush(
+            source=source, llm_provider=llm_provider, llm_model=llm_model,
+            prompt_template=prompt_template,
+        ))
         if summary:
             click.echo("Flush complete. Summary:\n")
             click.echo(summary)

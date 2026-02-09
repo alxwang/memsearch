@@ -29,6 +29,7 @@ async def flush_chunks(
     *,
     llm_provider: str = "openai",
     model: str | None = None,
+    prompt_template: str | None = None,
 ) -> str:
     """Compress *chunks* into a summary using an LLM.
 
@@ -40,6 +41,9 @@ async def flush_chunks(
         One of ``"openai"``, ``"anthropic"``, ``"gemini"``.
     model:
         Override the default model for the provider.
+    prompt_template:
+        Custom prompt template.  Must contain ``{chunks}`` placeholder.
+        Defaults to the built-in ``FLUSH_PROMPT``.
 
     Returns
     -------
@@ -47,7 +51,8 @@ async def flush_chunks(
         The compressed summary markdown.
     """
     combined = "\n\n---\n\n".join(c["content"] for c in chunks)
-    prompt = FLUSH_PROMPT.format(chunks=combined)
+    template = prompt_template or FLUSH_PROMPT
+    prompt = template.format(chunks=combined)
 
     if llm_provider == "openai":
         return await _flush_openai(prompt, model or "gpt-4o-mini")

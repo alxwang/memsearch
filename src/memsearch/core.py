@@ -182,6 +182,7 @@ class MemSearch:
         source: str | None = None,
         llm_provider: str = "openai",
         llm_model: str | None = None,
+        prompt_template: str | None = None,
         output_dir: str | Path | None = None,
     ) -> str:
         """Compress indexed chunks into a summary and append to a daily log.
@@ -199,6 +200,9 @@ class MemSearch:
             LLM backend for summarization.
         llm_model:
             Override the default model.
+        prompt_template:
+            Custom prompt template for the LLM.  Must contain a
+            ``{chunks}`` placeholder.  Defaults to the built-in prompt.
         output_dir:
             Directory to write the flush file into.  Defaults to the
             first entry in *paths*.
@@ -214,7 +218,8 @@ class MemSearch:
             return ""
 
         summary = await flush_chunks(
-            all_chunks, llm_provider=llm_provider, model=llm_model
+            all_chunks, llm_provider=llm_provider, model=llm_model,
+            prompt_template=prompt_template,
         )
 
         # Write summary to memory/YYYY-MM-DD.md (append)
