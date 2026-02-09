@@ -118,9 +118,8 @@ class MilvusStore:
         kwargs: dict[str, Any] = {
             "collection_name": self.COLLECTION,
             "output_fields": self._QUERY_FIELDS,
+            "filter": filter_expr if filter_expr else 'chunk_hash != ""',
         }
-        if filter_expr:
-            kwargs["filter"] = filter_expr
         return self._client.query(**kwargs)
 
     def delete_by_source(self, source: str) -> None:

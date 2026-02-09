@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import date
 from pathlib import Path
 from typing import Any, Callable, TYPE_CHECKING
 
@@ -155,7 +156,7 @@ class MemSearch:
         top_k:
             Maximum results to return.
         doc_type:
-            Filter by document type (``"markdown"``, ``"session"``, ``"flush"``).
+            Filter by document type (``"markdown"``, ``"session"``).
 
         Returns
         -------
@@ -179,8 +180,14 @@ class MemSearch:
         source: str | None = None,
         llm_provider: str = "openai",
         llm_model: str | None = None,
+        output_dir: str | Path | None = None,
     ) -> str:
-        """Compress indexed chunks into a summary and re-index it.
+        """Compress indexed chunks into a summary and append to a daily log.
+
+        The summary is appended to ``memory/YYYY-MM-DD.md`` inside the
+        output directory (defaults to the first configured path).  The
+        next ``index()`` or ``watch`` cycle will pick it up as a normal
+        markdown file — keeping markdown as the single source of truth.
 
         Parameters
         ----------
@@ -190,6 +197,9 @@ class MemSearch:
             LLM backend for summarization.
         llm_model:
             Override the default model.
+        output_dir:
+            Directory to write the flush file into.  Defaults to the
+            first entry in *paths*.
 
         Returns
         -------
@@ -205,11 +215,22 @@ class MemSearch:
             all_chunks, llm_provider=llm_provider, model=llm_model
         )
 
-        # Index the summary as a new "flush" document
-        flush_chunks_list = chunk_markdown(summary, source="flush://memory")
-        await self._embed_and_store(flush_chunks_list, doc_type="flush")
+        # Write summary to memory/YYYY-MM-DD.md (append)
+        base = Path(output_dir) if output_dir else Path(self._paths[0]) if self._paths else Path.cwd()
+        memory_dir = base / "memory"
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        flush_file = memory_dir / f"{date.today()}.md"
+        flush_heading = f"\n\n## Memory Flush\n\n"
+        with open(flush_file, "a", encoding="utf-8") as f:
+            if flush_file.stat().st_size == 0:
+                f.write(f"# {date.today()}\n")
+            f.write(flush_heading)
+            f.write(summary)
+            f.write("\n")
 
-        logger.info("Flushed %d chunks into summary", len(all_chunks))
+        # Index the updated file immediately
+        n = await self.index_file(flush_file)
+        logger.info("Flushed %d chunks into %s (%d new chunks indexed)", len(all_chunks), flush_file, n)
         return summary
 
     # ------------------------------------------------------------------
