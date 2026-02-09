@@ -43,7 +43,58 @@ pip install "memsearch[all]"         # Everything
 
 ## Configuration
 
-API keys are read from environment variables — no keys in code.
+memsearch uses a layered configuration system.  Settings are resolved in priority order (lowest → highest):
+
+1. **Built-in defaults**
+2. **Global config** — `~/.memsearch/config.toml`
+3. **Project config** — `.memsearch.toml` (in your working directory)
+4. **Environment variables** — `MEMSEARCH_SECTION_FIELD` (e.g. `MEMSEARCH_MILVUS_URI`)
+5. **CLI flags** — `--milvus-uri`, `--provider`, etc.
+
+### Quick setup
+
+```bash
+# Interactive wizard — creates ~/.memsearch/config.toml
+memsearch config init
+
+# Or set individual values
+memsearch config set milvus.uri http://localhost:19530
+memsearch config set embedding.provider google
+
+# View resolved config (all sources merged)
+memsearch config list --resolved
+```
+
+### Config file format
+
+```toml
+# ~/.memsearch/config.toml  (or .memsearch.toml for project-level)
+
+[milvus]
+uri = "~/.memsearch/milvus.db"
+token = ""
+collection = "memsearch_chunks"
+
+[embedding]
+provider = "openai"
+model = ""
+
+[chunking]
+max_chunk_size = 1500
+overlap_lines = 2
+
+[watch]
+debounce_ms = 1500
+
+[flush]
+llm_provider = "openai"
+llm_model = ""
+prompt_file = ""
+```
+
+### API keys
+
+API keys for embedding and LLM providers are read from standard environment variables:
 
 ```bash
 # Embedding providers (set the one you use)
@@ -71,6 +122,9 @@ memsearch index ./docs/ --provider google
 
 # Force re-index everything
 memsearch index ./docs/ --force
+
+# Use a remote Milvus server
+memsearch index ./docs/ --milvus-uri http://localhost:19530 --milvus-token root:Milvus
 ```
 
 ### Search
@@ -81,9 +135,6 @@ memsearch search "how to configure Redis caching"
 # Return more results
 memsearch search "authentication flow" --top-k 10
 
-# Filter by document type
-memsearch search "deployment steps" --doc-type markdown
-
 # JSON output (for piping to other tools)
 memsearch search "error handling" --json-output
 ```
@@ -93,12 +144,9 @@ memsearch search "error handling" --json-output
 ```bash
 # Auto-index on file changes (Ctrl+C to stop)
 memsearch watch ./docs/ ./notes/
-```
 
-### Ingest Claude session logs
-
-```bash
-memsearch ingest-session ~/.claude/projects/myproject/session.jsonl
+# Custom debounce interval
+memsearch watch ./docs/ --debounce-ms 3000
 ```
 
 ### Flush (compress memories)
@@ -114,6 +162,17 @@ memsearch flush --llm-provider gemini
 
 # Only flush chunks from a specific source
 memsearch flush --source ./docs/old-notes.md
+```
+
+### Configuration management
+
+```bash
+memsearch config init               # Interactive wizard
+memsearch config set milvus.uri http://localhost:19530
+memsearch config get milvus.uri
+memsearch config list --resolved    # Show merged config from all sources
+memsearch config list --global      # Show ~/.memsearch/config.toml only
+memsearch config list --project     # Show .memsearch.toml only
 ```
 
 ### Manage
@@ -146,9 +205,6 @@ async def main():
 
         # Index a single file
         await ms.index_file("./docs/new-note.md")
-
-        # Index a Claude session log
-        await ms.index_session("~/.claude/projects/myproject/session.jsonl")
 
         # Flush: compress all memories into a summary
         summary = await ms.flush(llm_provider="openai")
@@ -224,7 +280,7 @@ Flush ──► Retrieve chunks ──► LLM summarize ──► Re-index summa
 | **Embeddings** | Pluggable providers: OpenAI, Google, Voyage, Ollama, sentence-transformers |
 | **Store** | Milvus for vector storage — Milvus Lite (local), Milvus Server, or Zilliz Cloud. Dedup by `chunk_hash` primary key — unchanged content is never re-embedded |
 | **Watcher** | Watchdog-based file monitor for auto-indexing on changes |
-| **Session** | Parses Claude JSONL session logs into searchable chunks |
+| **Config** | Layered TOML configuration: global → project → env vars → CLI flags |
 | **Flush** | Compresses chunks into summaries via LLM (OpenAI / Anthropic / Gemini) |
 
 ## Embedding Providers
