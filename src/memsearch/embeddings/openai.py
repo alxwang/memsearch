@@ -18,11 +18,17 @@ class OpenAIEmbedding:
         import openai
 
         kwargs: dict = {}
+        
+        # Explicitly pass API key
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if api_key:
+            kwargs["api_key"] = api_key
+        
         base_url = os.environ.get("OPENAI_BASE_URL")
         if base_url:
             kwargs["base_url"] = base_url
 
-        self._client = openai.AsyncOpenAI(**kwargs)  # reads OPENAI_API_KEY
+        self._client = openai.AsyncOpenAI(**kwargs)
         self._model = model
         self._dimension = _default_dimension(model)
 
