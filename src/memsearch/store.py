@@ -34,6 +34,16 @@ class MilvusStore:
         connect_kwargs: dict[str, Any] = {"uri": resolved}
         if token:
             connect_kwargs["token"] = token
+            
+        # Add GRPC keepalive settings to prevent "too_many_pings" drops on MacOS
+        connect_kwargs["channel_args"] = {
+            "grpc.keepalive_time_ms": 10000,
+            "grpc.keepalive_timeout_ms": 5000,
+            "grpc.keepalive_permit_without_calls": 1,
+            "grpc.http2.min_ping_interval_without_data_ms": 5000,
+            "grpc.http2.max_pings_without_data": 0
+        }
+        
         self._client = MilvusClient(**connect_kwargs)
         self._collection = collection
         self._dimension = dimension
